@@ -1,87 +1,91 @@
 <?php
 session_start();
+require_once __DIR__ . '/db.php';
 
-// Include database connection
-include('login.php');
-
-// Check if user is logged in and role is admin or pharmacist
-if (!isset($_SESSION['username']) || !in_array($_SESSION['role'], ['admin', 'pharmacist'])) {
-    header("Location: login.php");
-    exit();
+// allow only admins
+if (!isset($_SESSION['user_id'], $_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+    header('Location: login.php?error=Access+denied');
+    exit;
 }
 
-$username = $_SESSION['username'];
-$role = $_SESSION['role'];
+$username = htmlspecialchars($_SESSION['username'] ?? 'admin', ENT_QUOTES, 'UTF-8');
+
+// gather simple stats
+$stats = [
+    'medicines' => 0,
+    'low_stock' => 0,
+    'users' => 0,
+    'orders' => 0,
+];
+
+$result = $mysqli->query("SELECT COUNT(*) AS c FROM medicines");
+if ($result) { $stats['medicines'] = (int)$result->fetch_assoc()['c']; $result->free(); }
+
+$result = $mysqli->query("SELECT COUNT(*) AS c FROM medicines WHERE quantity_in_stock <= 5");
+if ($result) { $stats['low_stock'] = (int)$result->fetch_assoc()['c']; $result->free(); }
+
+$result = $mysqli->query("SELECT COUNT(*) AS c FROM users");
+if ($result) { $stats['users'] = (int)$result->fetch_assoc()['c']; $result->free(); }
+
+$result = $mysqli->query("SELECT COUNT(*) AS c FROM orders");
+if ($result) { $stats['orders'] = (int)$result->fetch_assoc()['c']; $result->free(); }
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo ucfirst($role); ?> Dashboard | MyPharma</title>
+    <meta charset="utf-8">
+    <title>Admin Dashboard | MyPharma</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
     <style>
-        * { margin:0; padding:0; box-sizing:border-box; font-family:'Poppins', sans-serif; }
-        body { background:#f4f8fb; color:#333; }
-        header { background:#0072ff; color:white; padding:15px 40px; display:flex; justify-content:space-between; align-items:center; }
-        header a { color:white; text-decoration:none; background:#ff4444; padding:8px 15px; border-radius:5px; }
-        .dashboard { padding:40px; }
-        .welcome { margin-bottom:30px; font-size:1.2rem; }
-        .cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:25px; }
-        .card { background:white; border-radius:12px; box-shadow:0 4px 8px rgba(0,0,0,0.1); padding:25px; text-align:center; transition:0.3s; }
-        .card:hover { transform:translateY(-5px); }
-        .card h3 { color:#0072ff; margin-bottom:10px; }
-        .card p { color:#666; font-size:0.9rem; }
-        .card a { display:inline-block; margin-top:15px; text-decoration:none; color:white; background:#0072ff; padding:8px 15px; border-radius:5px; transition:0.3s; }
-        .card a:hover { background:#005fcc; }
-        footer { text-align:center; padding:10px; background:#0072ff; color:white; position:fixed; bottom:0; width:100%; }
+        body{font-family:Arial,Helvetica,sans-serif;background:#0b1220;color:#fff;padding:24px}
+        .card{background:#111;padding:18px;border-radius:8px;margin:12px 0}
+        a{color:#00ffcc;text-decoration:none}
+        .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+        header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+        .small{font-size:0.9rem;color:#aaa}
     </style>
 </head>
 <body>
+    <header>
+        <h1>MyPharma — Admin Dashboard</h1>
+        <div class="small">Welcome, <strong><?php echo $username; ?></strong> | <a href="logout.php">Logout</a></div>
+    </header>
 
-<header>
-    <h1>💊 MyPharma Dashboard</h1>
-    <div>
-        Welcome, <strong><?php echo htmlspecialchars($username); ?></strong> (<?php echo ucfirst($role); ?>)
-        | <a href="logout.php">Logout</a>
-    </div>
-</header>
+    <main>
+        <section class="grid">
+            <div class="card">
+                <h3>Total medicines</h3>
+                <p style="font-size:1.6rem"><?php echo $stats['medicines']; ?></p>
+                <p><a href="manage_medicine.php">Manage medicines</a></p>
+            </div>
 
-<div class="dashboard">
-    <div class="welcome">
-        <h2>Dashboard Overview</h2>
-        <p>Manage your pharmacy operations efficiently.</p>
-    </div>
+            <div class="card">
+                <h3>Low stock (&le;5)</h3>
+                <p style="font-size:1.6rem"><?php echo $stats['low_stock']; ?></p>
+                <p><a href="manage_medicine.php">Reorder</a></p>
+            </div>
 
-    <div class="cards">
-        <div class="card">
-            <h3>🧾 Manage Medicines</h3>
-            <p>Add, edit, or delete medicines from the pharmacy stock.</p>
-            <a href="medicine_manage.php">Go</a>
-        </div>
+            <div class="card">
+                <h3>Registered users</h3>
+                <p style="font-size:1.6rem"><?php echo $stats['users']; ?></p>
+                <p><a href="users.php">Manage users</a></p>
+            </div>
 
-        <div class="card">
-            <h3>🛒 Orders</h3>
-            <p>View and manage customer orders.</p>
-            <a href="orders.php">Go</a>
-        </div>
+            <div class="card">
+                <h3>Orders</h3>
+                <p style="font-size:1.6rem"><?php echo $stats['orders']; ?></p>
+                <p><a href="orders.php">View orders</a></p>
+            </div>
+        </section>
 
-        <div class="card">
-            <h3>👨‍⚕ Customers</h3>
-            <p>View customer details and purchase history.</p>
-            <a href="customers.php">Go</a>
-        </div>
-
-        <div class="card">
-            <h3>📊 Reports</h3>
-            <p>View sales reports and analytics.</p>
-            <a href="reports.php">Go</a>
-        </div>
-    </div>
-</div>
-
-<footer>
-    © 2025 MyPharma | Pharmacy Management System
-</footer>
-
+        <section class="card" style="margin-top:18px">
+            <h2>Quick actions</h2>
+            <ul>
+                <li><a href="add_medicine.php">Add new medicine</a></li>
+                <li><a href="manage_medicine.php">Update stock / prices</a></li>
+                <li><a href="orders.php">Process orders</a></li>
+            </ul>
+        </section>
+    </main>
 </body>
 </html>

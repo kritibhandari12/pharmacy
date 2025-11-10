@@ -1,33 +1,55 @@
 <?php
-// Database connection
-$servername = "localhost";
-$username = "root";   // default username in XAMPP
-$password = "";       // default password (empty)
-$dbname = "mypharma_db";
+session_start();
+require_once __DIR__ . '/db.php';
 
-$conn = new mysqli($servername, $username, $password, $dbname);
-
-// Check connection
-if ($conn->connect_error) {
-    die("Database connection failed: " . $conn->connect_error);
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header('Location: register.php');
+    exit;
 }
 
-// Get form data (sanitize to prevent SQL injection)
-$fullname = $conn->real_escape_string($_POST['name']);
-$email = $conn->real_escape_string($_POST['email']);
-$password = $conn->real_escape_string($_POST['password']);
+$username = trim($_POST['username'] ?? '');
+$email = trim($_POST['email'] ?? '');
+$password = $_POST['password'] ?? '';
+$confirm = $_POST['confirm_password'] ?? '';
+$role = $_POST['role'] ?? 'customer';
 
-// Hash password for security
-$hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-
-// Insert into database
-$sql = "INSERT INTO users (fullname, email, password) VALUES ('$fullname', '$email', '$hashedPassword')";
-
-if ($conn->query($sql) === TRUE) {
-    echo "<script>alert('Registration successful!'); window.location.href='login.php';</script>";
-} else {
-    echo "Error: " . $conn->error;
+if ($username === '' || $email === '' || $password === '' || $password !== $confirm) {
+    header('Location: register.php?error=Invalid+input');
+    exit;
 }
 
-$conn->close();
+if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    header('Location: register.php?error=Invalid+email');
+    exit;
+}
+
+// Check duplicates
+$checkSql = "SELECT id FROM users WHERE username = ? OR email = ? LIMIT 1";
+if ($stmt = $mysqli->prepare($checkSql)) {
+    $stmt->bind_param('ss', $username, $email);
+    $stmt->execute();
+    $stmt->store_result();
+    if ($stmt->num_rows > 0) {
+        $stmt->close();
+        header('Location: register.php?error=User+already+exists');
+        exit;
+    }
+    $stmt->close();
+}
+
+// Insert user
+$hash = password_hash($password, PASSWORD_DEFAULT);
+$insertSql = "INSERT INTO users (username, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, NOW())";
+if ($stmt = $mysqli->prepare($insertSql)) {
+    $stmt->bind_param('ssss', $username, $email, $hash, $role);
+    if ($stmt->execute()) {
+        $stmt->close();
+        header('Location: login.php?success=registered');
+        exit;
+    }
+    $stmt->close();
+}
+
+header('Location: register.php?error=Registration+failed');
+exit;
 ?>
