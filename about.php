@@ -17,6 +17,7 @@
                         url('medical-bg.jpg') no-repeat center center/cover;
             min-height: 100vh;
             color: #fff;
+            
         }
 
         /* Navbar */
